@@ -288,10 +288,10 @@
               'ok'
             );
 
-            window.opener.postMessage({
-              type: 'QR_SCANNED',
-              text: qrText
-            }, 'https://script.google.com');
+           window.opener.postMessage({
+  type: 'QR_SCANNED',
+  text: qrText
+}, '*');
 
             setTimeout(function () {
               window.close();
