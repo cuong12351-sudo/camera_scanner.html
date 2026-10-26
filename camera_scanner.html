@@ -126,12 +126,6 @@
 (function () {
   'use strict';
 
-  // Origin của trang Apps Script có thể thuộc một trong hai miền này.
-  const ALLOWED_PARENT_ORIGINS = [
-    'https://script.google.com',
-    'https://script.googleusercontent.com'
-  ];
-
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
   const context = canvas.getContext('2d', {
@@ -153,7 +147,6 @@
   let pendingQrText = '';
   let pendingAckTimeout = null;
   let acknowledged = false;
-  let lastParentOrigin = '';
 
   function showStatus(message, type) {
     statusBox.textContent = message;
@@ -404,25 +397,36 @@
    * với đúng mã vừa quét và đúng cửa sổ cha.
    */
   window.addEventListener('message', function (event) {
-    if (!ALLOWED_PARENT_ORIGINS.includes(event.origin)) return;
-    if (!window.opener || event.source !== window.opener) return;
+    // Chẩn đoán: nhận ACK từ đúng cửa sổ đã mở máy quét.
+    console.log('[QR ACK] Origin:', event.origin);
+    console.log('[QR ACK] Data:', event.data);
+    console.log('[QR ACK] Source is opener:',
+      !!window.opener && event.source === window.opener
+    );
+
+    // Không khóa cứng event.origin vì Apps Script có thể dùng
+    // các origin khác nhau. Vẫn xác minh đúng cửa sổ cha.
+    if (!window.opener || event.source !== window.opener) {
+      console.warn('[QR ACK] Tin nhắn không đến từ cửa sổ cha.');
+      return;
+    }
 
     const data = event.data;
 
     if (!data ||
         data.type !== 'QR_RECEIVED' ||
         typeof data.text !== 'string') {
+      console.warn('[QR ACK] Tin nhắn không phải QR_RECEIVED hợp lệ.');
       return;
     }
 
     if (!pendingQrText || data.text !== pendingQrText) {
+      console.warn('[QR ACK] Mã xác nhận không khớp mã đã quét.');
       return;
     }
 
     acknowledged = true;
-    lastParentOrigin = event.origin;
     clearAckTimeout();
-
     retryButton.disabled = true;
 
     showStatus(
