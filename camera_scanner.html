@@ -2,332 +2,322 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>QR Production - Camera Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <title>QR PRODUCTION</title>
 
   <style>
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      padding: 16px;
+      padding: 20px;
       font-family: Arial, sans-serif;
-      background: #edf2f7;
-      color: #1f2937;
+      background: #f1f5f9;
+      color: #1e293b;
     }
 
-    main {
-      max-width: 520px;
+    .container {
+      max-width: 600px;
       margin: 0 auto;
-      padding: 18px;
-      background: white;
+      padding: 24px;
+      background: #fff;
       border-radius: 14px;
-      box-shadow: 0 4px 18px #0001;
+      box-shadow: 0 4px 20px #00000012;
     }
 
     h2 {
       text-align: center;
-      color: #124b80;
+      color: #0759a5;
+      margin-top: 0;
     }
 
-    video {
+    label {
       display: block;
+      font-weight: bold;
+      margin: 16px 0 7px;
+    }
+
+    input {
       width: 100%;
-      max-height: 60vh;
-      background: #111827;
-      border-radius: 10px;
-      object-fit: contain;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    input:focus {
+      outline: 2px solid #93c5fd;
+      border-color: #2563eb;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
     }
 
     button {
-      width: 100%;
-      min-height: 48px;
-      margin-top: 12px;
-      padding: 12px;
+      padding: 13px 8px;
       border: 0;
-      border-radius: 9px;
-      font-size: 16px;
+      border-radius: 8px;
       font-weight: bold;
-      color: white;
-      background: #1261a0;
+      font-size: 15px;
       cursor: pointer;
     }
 
-    #stopButton { background: #b91c1c; }
+    #scanBtn, #saveBtn {
+      background: #0875d1;
+      color: white;
+    }
+
+    #clearBtn {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
 
     #status {
-      margin-top: 12px;
+      margin-top: 16px;
       padding: 12px;
       border-radius: 8px;
-      background: #dbeafe;
-      color: #1e40af;
+      background: #eaf2ff;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       line-height: 1.5;
     }
 
-    .error {
-      background: #fee2e2 !important;
-      color: #991b1b !important;
-    }
-
-    .ok {
-      background: #dcfce7 !important;
-      color: #166534 !important;
-    }
+    .ok { background: #dcfce7 !important; color: #166534; }
+    .error { background: #fee2e2 !important; color: #991b1b; }
   </style>
 </head>
 
 <body>
-<main>
-  <h2>QUÉT QR SẢN PHẨM</h2>
+  <div class="container">
+    <h2>QR PRODUCTION</h2>
 
-  <p>
-    Nhấn BẬT CAMERA, cho phép truy cập camera nếu được hỏi,
-    rồi đưa mã QR vào giữa khung hình.
-  </p>
+    <label for="product">Mã số sản phẩm</label>
+    <input id="product" type="text" maxlength="200"
+           placeholder="Nhập hoặc quét mã QR">
 
-  <video id="video" autoplay muted playsinline></video>
+    <button id="scanBtn" type="button" style="width:100%;margin-top:10px">
+      QUÉT QR BẰNG CAMERA
+    </button>
 
-  <div id="status" role="status" aria-live="polite">
-    Nhấn BẬT CAMERA để bắt đầu.
+    <label for="quantity">Số lượng</label>
+    <input id="quantity" type="number" min="1" step="1"
+           placeholder="Nhập số lượng">
+
+    <label for="line">Chuyền sản xuất</label>
+    <input id="line" type="text" placeholder="Nhập chuyền sản xuất">
+
+    <label for="operator">Người thao tác</label>
+    <input id="operator" type="text" placeholder="Nhập tên người thao tác">
+
+    <div class="buttons">
+      <button id="saveBtn" type="button">LƯU DỮ LIỆU</button>
+      <button id="clearBtn" type="button">XÓA NỘI DUNG</button>
+    </div>
+
+    <div id="status">Sẵn sàng. Hãy nhập thông tin hoặc quét mã QR.</div>
   </div>
 
-  <button id="startButton" type="button">BẬT CAMERA</button>
-  <button id="stopButton" type="button">DỪNG CAMERA</button>
-</main>
+  <script>
+    'use strict';
 
-<canvas id="canvas" hidden></canvas>
+    const SCANNER_URL =
+      'https://cuong12351-sudo.github.io/camera_scanner.html/camera_scanner.html';
 
-<script>
-(function () {
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const context = canvas.getContext('2d', {
-    willReadFrequently: true
-  });
+    const SCANNER_ORIGIN =
+      'https://cuong12351-sudo.github.io';
 
-  const statusBox = document.getElementById('status');
-  const startButton = document.getElementById('startButton');
-  const stopButton = document.getElementById('stopButton');
+    const productInput = document.getElementById('product');
+    const quantityInput = document.getElementById('quantity');
+    const lineInput = document.getElementById('line');
+    const operatorInput = document.getElementById('operator');
 
-  let stream = null;
-  let active = false;
-  let starting = false;
-  let found = false;
-  let frameId = null;
-  let lastScan = 0;
+    const scanBtn = document.getElementById('scanBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusBox = document.getElementById('status');
 
-  function showStatus(message, type) {
-    statusBox.textContent = message;
-    statusBox.className = type || '';
-  }
+    let scannerWindow = null;
 
-  function stopCamera() {
-    active = false;
-
-    if (frameId !== null) {
-      cancelAnimationFrame(frameId);
-      frameId = null;
+    function showStatus(message, type) {
+      statusBox.textContent = message;
+      statusBox.className = type || '';
     }
 
-    if (stream) {
-      stream.getTracks().forEach(function (track) {
-        track.stop();
-      });
-      stream = null;
-    }
-
-    video.srcObject = null;
-    starting = false;
-  }
-
-  async function startCamera() {
-    if (starting || active) return;
-
-    starting = true;
-    found = false;
-
-    if (!window.isSecureContext ||
-        !navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia) {
-      starting = false;
-      showStatus(
-        'Camera không khả dụng. Hãy mở trang bằng HTTPS và trình duyệt hỗ trợ camera.',
-        'error'
+    function openScanner() {
+      const opened = window.open(
+        SCANNER_URL,
+        'QRProductionScanner',
+        'width=520,height=760'
       );
-      return;
-    }
 
-    if (typeof window.jsQR !== 'function') {
-      starting = false;
-      showStatus(
-        'Không tải được thư viện QR. Kiểm tra Internet rồi tải lại trang.',
-        'error'
-      );
-      return;
-    }
-
-    showStatus('Đang yêu cầu quyền camera...', '');
-
-    try {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-      } catch (firstError) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: true
-        });
+      if (!opened) {
+        showStatus(
+          'Trình duyệt đã chặn cửa sổ máy quét. Hãy cho phép cửa sổ bật lên (pop-up), sau đó thử lại.',
+          'error'
+        );
+        return;
       }
 
-      video.srcObject = stream;
-      await video.play();
-
-      active = true;
-      starting = false;
+      scannerWindow = opened;
 
       showStatus(
-        'Camera đã bật. Đưa mã QR vào khung hình.',
+        'Đã mở máy quét QR. Hãy cấp quyền camera và đưa mã QR vào khung hình.',
         ''
       );
+    }
 
-      frameId = requestAnimationFrame(scanFrame);
+    // Nhận mã QR từ cửa sổ GitHub Pages.
+    window.addEventListener('message', function(event) {
+      // Chỉ chấp nhận tin nhắn từ đúng website máy quét.
+      if (event.origin !== SCANNER_ORIGIN) return;
 
-    } catch (err) {
-      stopCamera();
-      console.error('Camera error:', err.name, err.message);
+      // Chỉ chấp nhận cửa sổ máy quét do biểu mẫu này mở.
+      if (!scannerWindow || event.source !== scannerWindow) return;
 
-      let message = 'Không thể mở camera.';
+      const data = event.data;
 
-      if (err.name === 'NotAllowedError' ||
-          err.name === 'SecurityError') {
-        message =
-          'Quyền camera bị từ chối. Kiểm tra quyền camera của trình duyệt và quyền riêng tư trên iPhone.';
-      } else if (err.name === 'NotFoundError') {
-        message = 'Không tìm thấy camera trên thiết bị.';
-      } else if (err.name === 'NotReadableError') {
-        message =
-          'Camera đang bận hoặc không thể khởi động. Hãy đóng ứng dụng khác đang dùng camera.';
-      } else {
-        message += '\nChi tiết: ' + err.message;
+      if (!data ||
+          data.type !== 'QR_SCANNED' ||
+          typeof data.text !== 'string') {
+        return;
       }
 
-      showStatus(message, 'error');
-    }
-  }
+      const qrText = data.text.trim();
 
-  function scanFrame() {
-    if (!active || found) return;
+      if (!qrText) {
+        showStatus('Mã QR trống. Vui lòng quét lại.', 'error');
+        return;
+      }
 
-    if (
-      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-      video.videoWidth > 0 &&
-      video.videoHeight > 0 &&
-      Date.now() - lastScan >= 150
-    ) {
-      lastScan = Date.now();
+      // Điền mã QR vào trường Mã số sản phẩm.
+      productInput.value = qrText.slice(0, 200);
+      productInput.dispatchEvent(new Event('input', { bubbles: true }));
+      productInput.focus();
 
-      const scale = Math.min(
-        1,
-        1000 / Math.max(video.videoWidth, video.videoHeight)
-      );
-
-      canvas.width = Math.max(
-        1,
-        Math.round(video.videoWidth * scale)
-      );
-
-      canvas.height = Math.max(
-        1,
-        Math.round(video.videoHeight * scale)
-      );
-
-      context.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
+      // Xác nhận lại cho cửa sổ máy quét, chỉ sau khi đã điền trường.
       try {
-        const pixels = context.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height
+        event.source.postMessage({
+          type: 'QR_RECEIVED',
+          text: qrText
+        }, event.origin);
+
+        showStatus('Đã nhận mã sản phẩm: ' + qrText, 'ok');
+      } catch (err) {
+        showStatus(
+          'Đã điền mã sản phẩm nhưng không gửi được xác nhận: ' +
+          err.message,
+          'error'
         );
+      }
 
-        const result = window.jsQR(
-          pixels.data,
-          pixels.width,
-          pixels.height,
-          { inversionAttempts: 'attemptBoth' }
+      scannerWindow = null;
+    });
+
+    scanBtn.addEventListener('click', openScanner);
+
+    clearBtn.addEventListener('click', function() {
+      productInput.value = '';
+      quantityInput.value = '';
+      lineInput.value = '';
+      operatorInput.value = '';
+
+      showStatus('Đã xóa nội dung biểu mẫu.', '');
+      productInput.focus();
+    });
+
+    saveBtn.addEventListener('click', function() {
+      const product = productInput.value.trim();
+      const quantity = Number(quantityInput.value);
+      const line = lineInput.value.trim();
+      const operator = operatorInput.value.trim();
+
+      if (!product) {
+        showStatus('Vui lòng nhập hoặc quét Mã số sản phẩm.', 'error');
+        productInput.focus();
+        return;
+      }
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        showStatus('Số lượng phải là số nguyên lớn hơn 0.', 'error');
+        quantityInput.focus();
+        return;
+      }
+
+      if (!line) {
+        showStatus('Vui lòng nhập Chuyền sản xuất.', 'error');
+        lineInput.focus();
+        return;
+      }
+
+      if (!operator) {
+        showStatus('Vui lòng nhập Người thao tác.', 'error');
+        operatorInput.focus();
+        return;
+      }
+
+      const payload = {
+        product: product,
+        quantity: quantity,
+        line: line,
+        operator: operator
+      };
+
+      if (typeof google === 'undefined' ||
+          !google.script ||
+          !google.script.run) {
+        showStatus(
+          'Không tìm thấy kết nối Google Apps Script. Hãy mở biểu mẫu từ URL Web App đã triển khai.',
+          'error'
         );
+        return;
+      }
 
-        if (result && result.data && result.data.trim()) {
-          found = true;
+      saveBtn.disabled = true;
+      showStatus('Đang lưu dữ liệu...', '');
 
-          const qrText = result.data.trim();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          saveBtn.disabled = false;
 
-          stopCamera();
-
-          if (window.opener && !window.opener.closed) {
+          // Tương thích với hàm lưu trả về true hoặc object thành công.
+          if (result === false ||
+              (result && result.success === false)) {
             showStatus(
-              'Đã quét QR. Đang gửi mã về biểu mẫu...',
-              'ok'
+              (result && result.message) ||
+              'Hàm lưu dữ liệu trả về trạng thái thất bại.',
+              'error'
             );
-
-           window.opener.postMessage({
-  type: 'QR_SCANNED',
-  text: qrText
-}, 'https://script.google.com');
-
-            setTimeout(function () {
-              window.close();
-            }, 700);
-
-          } else {
-            showStatus(
-              'Đã đọc mã QR:\n' + qrText +
-              '\n\nKhông có biểu mẫu mở cửa sổ này. Mã chưa được gửi về QR Production.',
-              'ok'
-            );
+            return;
           }
 
-          return;
-        }
-      } catch (err) {
-        console.error('QR scan error:', err);
-      }
-    }
-
-    frameId = requestAnimationFrame(scanFrame);
-  }
-
-  startButton.addEventListener('click', startCamera);
-
-  stopButton.addEventListener('click', function () {
-    stopCamera();
-
-    showStatus(
-      'Camera đã dừng. Nhấn BẬT CAMERA để quét lại.',
-      ''
-    );
-  });
-
-  window.addEventListener('pagehide', stopCamera);
-})();
-</script>
+          showStatus(
+            (result && result.message) ||
+            'Đã gửi yêu cầu lưu dữ liệu thành công.',
+            'ok'
+          );
+        })
+        .withFailureHandler(function(error) {
+          saveBtn.disabled = false;
+          showStatus(
+            'Lỗi lưu dữ liệu: ' +
+            (error && error.message ? error.message : String(error)),
+            'error'
+          );
+        })
+        .saveProduction(payload);
+    });
+  </script>
 </body>
 </html>
