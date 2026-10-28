@@ -1,477 +1,88 @@
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>QR Production - Camera Scanner</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Quét QR trực tiếp</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-
   <style>
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      padding: 16px;
-      font-family: Arial, sans-serif;
-      background: #edf2f7;
-      color: #1f2937;
-    }
-
-    main {
-      max-width: 520px;
-      margin: 0 auto;
-      padding: 18px;
-      background: white;
-      border-radius: 14px;
-      box-shadow: 0 4px 18px #0001;
-    }
-
-    h2 {
-      text-align: center;
-      color: #124b80;
-    }
-
-    video {
-      display: block;
-      width: 100%;
-      max-height: 60vh;
-      background: #111827;
-      border-radius: 10px;
-      object-fit: contain;
-    }
-
-    button {
-      width: 100%;
-      min-height: 48px;
-      margin-top: 12px;
-      padding: 12px;
-      border: 0;
-      border-radius: 9px;
-      font-size: 16px;
-      font-weight: bold;
-      color: white;
-      background: #1261a0;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: .55;
-      cursor: not-allowed;
-    }
-
-    #stopButton { background: #b91c1c; }
-    #retryButton { background: #15803d; }
-
-    #status {
-      margin-top: 12px;
-      padding: 12px;
-      border-radius: 8px;
-      background: #dbeafe;
-      color: #1e40af;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      line-height: 1.5;
-    }
-
-    .error {
-      background: #fee2e2 !important;
-      color: #991b1b !important;
-    }
-
-    .ok {
-      background: #dcfce7 !important;
-      color: #166534 !important;
-    }
-
-    #qrResult {
-      display: none;
-      margin-top: 12px;
-      padding: 12px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      background: #f8fafc;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
-    }
+    *{box-sizing:border-box} body{margin:0;padding:16px;font-family:Arial,sans-serif;background:#edf2f7;color:#1f2937}
+    main{max-width:520px;margin:0 auto;background:#fff;padding:18px;border-radius:14px;box-shadow:0 4px 18px #0001}
+    h2{margin:0 0 8px;color:#124b80;text-align:center;font-size:22px} p{font-size:14px;line-height:1.5}
+    video{width:100%;max-height:65vh;background:#111827;border-radius:10px;display:block;object-fit:cover}
+    button{width:100%;min-height:48px;border:0;border-radius:9px;margin-top:12px;font-size:16px;font-weight:bold;background:#b91c1c;color:white}
+    #status{padding:12px;border-radius:8px;background:#dbeafe;color:#1e40af;white-space:pre-wrap;overflow-wrap:anywhere}
+    .error{background:#fee2e2!important;color:#991b1b!important}.ok{background:#dcfce7!important;color:#166534!important}
   </style>
 </head>
-
 <body>
 <main>
-  <h2>QUÉT QR SẢN PHẨM</h2>
-
-  <p>
-    Nhấn BẬT CAMERA, cho phép truy cập camera nếu được hỏi,
-    rồi đưa mã QR vào giữa khung hình.
-  </p>
-
+  <h2>QUÉT QR TRỰC TIẾP</h2>
+  <p>Cho phép sử dụng camera khi trình duyệt hỏi. Đưa mã QR vào khung hình; khi đọc được, nội dung sẽ tự động gửi về biểu mẫu QR Production.</p>
   <video id="video" autoplay muted playsinline></video>
-
-  <div id="status" role="status" aria-live="polite">
-    Nhấn BẬT CAMERA để bắt đầu.
-  </div>
-
-  <div id="qrResult"></div>
-
-  <button id="startButton" type="button">BẬT CAMERA</button>
-  <button id="retryButton" type="button" disabled>GỬI LẠI MÃ QR</button>
-  <button id="stopButton" type="button">DỪNG CAMERA</button>
+  <div id="status" role="status" aria-live="polite">Đang khởi động camera...</div>
+  <button id="stopButton" type="button">DỪNG CAMERA / ĐÓNG CỬA SỔ</button>
 </main>
-
 <canvas id="canvas" hidden></canvas>
-
 <script>
-(function () {
-  'use strict';
-
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const context = canvas.getContext('2d', {
-    willReadFrequently: true
-  });
-
-  const statusBox = document.getElementById('status');
-  const qrResult = document.getElementById('qrResult');
-  const startButton = document.getElementById('startButton');
-  const retryButton = document.getElementById('retryButton');
-  const stopButton = document.getElementById('stopButton');
-
-  let stream = null;
-  let active = false;
-  let starting = false;
-  let found = false;
-  let frameId = null;
-  let lastScan = 0;
-  let pendingQrText = '';
-  let pendingAckTimeout = null;
-  let acknowledged = false;
-
-  function showStatus(message, type) {
-    statusBox.textContent = message;
-    statusBox.className = type || '';
+(function(){
+  const video=document.getElementById('video');
+  const canvas=document.getElementById('canvas');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const statusBox=document.getElementById('status');
+  const stopButton=document.getElementById('stopButton');
+  let stream=null, active=false, frameId=null, lastScan=0;
+  function status(text,kind){statusBox.textContent=text;statusBox.className=kind||'';}
+  function stop(closeWindow){
+    active=false;
+    if(frameId!==null){cancelAnimationFrame(frameId);frameId=null;}
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+    video.srcObject=null;
+    if(closeWindow && window.opener){window.close();}
   }
-
-  function stopCamera() {
-    active = false;
-
-    if (frameId !== null) {
-      cancelAnimationFrame(frameId);
-      frameId = null;
-    }
-
-    if (stream) {
-      stream.getTracks().forEach(function (track) {
-        track.stop();
-      });
-      stream = null;
-    }
-
-    video.srcObject = null;
-    starting = false;
-  }
-
-  function clearAckTimeout() {
-    if (pendingAckTimeout !== null) {
-      clearTimeout(pendingAckTimeout);
-      pendingAckTimeout = null;
+  stopButton.addEventListener('click',()=>stop(true));
+  window.addEventListener('pagehide',()=>stop(false));
+  async function start(){
+    if(!window.opener){status('Không tìm thấy biểu mẫu đã mở cửa sổ này. Hãy đóng cửa sổ và nhấn QUÉT QR TRỰC TIẾP từ biểu mẫu.','error');return;}
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){status('Trình duyệt không hỗ trợ camera trực tiếp hoặc trang chưa chạy bằng HTTPS.','error');return;}
+    if(typeof window.jsQR!=='function'){status('Không tải được thư viện đọc QR. Kiểm tra Internet rồi tải lại trang.','error');return;}
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
+      video.srcObject=stream; await video.play(); active=true;
+      status('Camera đã bật. Đưa mã QR vào khung hình.','');
+      frameId=requestAnimationFrame(scan);
+    }catch(err){
+      let msg='Không mở được camera.';
+      if(err&&err.name==='NotAllowedError') msg='Quyền camera bị từ chối. Hãy cho phép Camera cho trang quét này trong cài đặt trình duyệt rồi tải lại.';
+      else if(err&&err.name==='NotFoundError') msg='Không tìm thấy camera trên thiết bị.';
+      else if(err&&err.name==='NotReadableError') msg='Camera đang được ứng dụng khác sử dụng. Hãy đóng ứng dụng đó rồi thử lại.';
+      else if(err&&err.message) msg+=' '+err.message;
+      status(msg,'error');
     }
   }
-
-  function sendQrToParent() {
-    if (!pendingQrText) {
-      showStatus('Chưa có mã QR để gửi.', 'error');
-      return;
-    }
-
-    if (!window.opener || window.opener.closed) {
-      showStatus(
-        'Đã đọc mã QR nhưng không tìm thấy biểu mẫu đang mở.\n' +
-        'Hãy mở máy quét từ nút QUÉT QR BẰNG CAMERA trong QR PRODUCTION.',
-        'error'
-      );
-      retryButton.disabled = false;
-      return;
-    }
-
-    try {
-      // Xóa bộ đếm thời gian chờ cũ trước khi gửi lại.
-      clearAckTimeout();
-      acknowledged = false;
-      retryButton.disabled = true;
-
-      window.opener.postMessage({
-        type: 'QR_SCANNED',
-        text: pendingQrText
-      }, '*');
-
-      showStatus(
-        'Đã đọc mã QR. Đang chờ biểu mẫu xác nhận nhận mã...',
-        ''
-      );
-
-      pendingAckTimeout = setTimeout(function () {
-        if (acknowledged) return;
-
-        retryButton.disabled = false;
-
-        showStatus(
-          'Chưa nhận được xác nhận từ biểu mẫu.\n' +
-          'Mã QR vẫn được giữ lại:\n' + pendingQrText +
-          '\n\nHãy kiểm tra cửa sổ QR PRODUCTION. ' +
-          'Nếu ô sản phẩm chưa có mã, hãy nhấn GỬI LẠI MÃ QR.',
-          'error'
-        );
-      }, 8000);
-
-    } catch (err) {
-      clearAckTimeout();
-      retryButton.disabled = false;
-
-      showStatus(
-        'Không gửi được mã QR: ' + err.message,
-        'error'
-      );
-    }
-  }
-
-  async function startCamera() {
-    if (starting || active || found) return;
-
-    starting = true;
-
-    if (!window.isSecureContext ||
-        !navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia) {
-      starting = false;
-      showStatus(
-        'Camera không khả dụng. Hãy mở trang bằng HTTPS ' +
-        'và dùng trình duyệt hỗ trợ camera.',
-        'error'
-      );
-      return;
-    }
-
-    if (typeof window.jsQR !== 'function') {
-      starting = false;
-      showStatus(
-        'Không tải được thư viện QR. Kiểm tra Internet rồi tải lại trang.',
-        'error'
-      );
-      return;
-    }
-
-    showStatus('Đang yêu cầu quyền camera...', '');
-
-    try {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-      } catch (firstError) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: true
-        });
-      }
-
-      video.srcObject = stream;
-      await video.play();
-
-      active = true;
-      starting = false;
-      found = false;
-      lastScan = 0;
-
-      showStatus(
-        'Camera đã bật. Đưa mã QR vào khung hình.',
-        ''
-      );
-
-      frameId = requestAnimationFrame(scanFrame);
-
-    } catch (err) {
-      stopCamera();
-      console.error('Camera error:', err.name, err.message);
-
-      let message = 'Không thể mở camera.';
-
-      if (err.name === 'NotAllowedError' ||
-          err.name === 'SecurityError') {
-        message =
-          'Quyền camera đang bị từ chối. Hãy kiểm tra quyền camera ' +
-          'của trình duyệt và quyền riêng tư trên thiết bị.';
-      } else if (err.name === 'NotFoundError') {
-        message = 'Không tìm thấy camera trên thiết bị.';
-      } else if (err.name === 'NotReadableError') {
-        message =
-          'Camera đang bận hoặc không thể khởi động. ' +
-          'Hãy đóng ứng dụng khác đang sử dụng camera.';
-      } else {
-        message += '\nChi tiết: ' + err.message;
-      }
-
-      showStatus(message, 'error');
-    }
-  }
-
-  function scanFrame() {
-    if (!active || found) return;
-
-    if (
-      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-      video.videoWidth > 0 &&
-      video.videoHeight > 0 &&
-      Date.now() - lastScan >= 150
-    ) {
-      lastScan = Date.now();
-
-      const scale = Math.min(
-        1,
-        1000 / Math.max(video.videoWidth, video.videoHeight)
-      );
-
-      canvas.width = Math.max(
-        1,
-        Math.round(video.videoWidth * scale)
-      );
-
-      canvas.height = Math.max(
-        1,
-        Math.round(video.videoHeight * scale)
-      );
-
-      context.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
-      try {
-        const pixels = context.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-
-        const result = window.jsQR(
-          pixels.data,
-          pixels.width,
-          pixels.height,
-          { inversionAttempts: 'attemptBoth' }
-        );
-
-        if (result && result.data && result.data.trim()) {
-          pendingQrText = result.data.trim();
-          found = true;
-
-          stopCamera();
-
-          qrResult.style.display = 'block';
-          qrResult.textContent = 'Mã QR đã đọc:\n' + pendingQrText;
-
-          sendQrToParent();
+  function scan(){
+    if(!active)return;
+    if(video.readyState>=HTMLMediaElement.HAVE_CURRENT_DATA&&video.videoWidth>0&&video.videoHeight>0&&Date.now()-lastScan>120){
+      lastScan=Date.now();
+      const scale=Math.min(1,1000/Math.max(video.videoWidth,video.videoHeight));
+      canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      try{
+        const d=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const code=window.jsQR(d.data,d.width,d.height,{inversionAttempts:'attemptBoth'});
+        if(code&&code.data&&String(code.data).trim()){
+          const rawText=String(code.data);
+          status('Đọc QR thành công. Đang gửi mã về biểu mẫu...','ok');
+          stop(false);
+          try{window.opener.postMessage({type:'QR_SCANNED',text:rawText},'*');}catch(e){status('Không gửi được mã về biểu mẫu: '+e.message,'error');return;}
+          setTimeout(()=>window.close(),250);
           return;
         }
-      } catch (err) {
-        console.error('QR scan error:', err);
-      }
+      }catch(e){}
     }
-
-    if (active) {
-      frameId = requestAnimationFrame(scanFrame);
-    }
+    frameId=requestAnimationFrame(scan);
   }
-
-  /*
-   * Chỉ đóng cửa sổ khi biểu mẫu gửi xác nhận QR_RECEIVED
-   * với đúng mã vừa quét và đúng cửa sổ cha.
-   */
-  window.addEventListener('message', function (event) {
-    // Chẩn đoán: nhận ACK từ đúng cửa sổ đã mở máy quét.
-    console.log('[QR ACK] Origin:', event.origin);
-    console.log('[QR ACK] Data:', event.data);
-    console.log('[QR ACK] Source is opener:',
-      !!window.opener && event.source === window.opener
-    );
-
-    // Không khóa cứng event.origin vì Apps Script có thể dùng
-    // các origin khác nhau. Vẫn xác minh đúng cửa sổ cha.
-    if (!window.opener || event.source !== window.opener) {
-      console.warn('[QR ACK] Tin nhắn không đến từ cửa sổ cha.');
-      return;
-    }
-
-    const data = event.data;
-
-    if (!data ||
-        data.type !== 'QR_RECEIVED' ||
-        typeof data.text !== 'string') {
-      console.warn('[QR ACK] Tin nhắn không phải QR_RECEIVED hợp lệ.');
-      return;
-    }
-
-    if (!pendingQrText || data.text !== pendingQrText) {
-      console.warn('[QR ACK] Mã xác nhận không khớp mã đã quét.');
-      return;
-    }
-
-    acknowledged = true;
-    clearAckTimeout();
-    retryButton.disabled = true;
-
-    showStatus(
-      'Biểu mẫu đã xác nhận nhận mã QR thành công.\n' +
-      'Đang đóng cửa sổ máy quét...',
-      'ok'
-    );
-
-    setTimeout(function () {
-      window.close();
-
-      // Nếu trình duyệt không cho tự đóng, hiển thị hướng dẫn.
-      setTimeout(function () {
-        if (!window.closed) {
-          showStatus(
-            'Đã gửi mã thành công. Trình duyệt không cho phép ' +
-            'tự đóng cửa sổ; bạn có thể đóng cửa sổ này.',
-            'ok'
-          );
-        }
-      }, 300);
-    }, 500);
-  });
-
-  startButton.addEventListener('click', startCamera);
-
-  retryButton.addEventListener('click', function () {
-    if (acknowledged) return;
-    sendQrToParent();
-  });
-
-  stopButton.addEventListener('click', function () {
-    stopCamera();
-    showStatus(
-      pendingQrText
-        ? 'Camera đã dừng. Mã QR đã đọc vẫn được giữ lại.'
-        : 'Camera đã dừng. Bạn có thể nhấn BẬT CAMERA để quét lại.',
-      ''
-    );
-  });
-
-  window.addEventListener('pagehide', function () {
-    stopCamera();
-    clearAckTimeout();
-  });
+  start();
 })();
 </script>
 </body>
